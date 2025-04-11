@@ -8,6 +8,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// === TRYB 1: ANALIZA PRODUKTU ===
 app.post('/scrape', async (req, res) => {
   const { url } = req.body;
 
@@ -51,31 +52,24 @@ app.post('/scrape', async (req, res) => {
       rating = rating.match(/[\d.]+/)?.[0] || null;
     }
 
-    // Recenzje – z tekstu "4,863 ratings"
     let reviewsCount = $('#acrCustomerReviewText').text().trim();
     if (reviewsCount) {
-      const match = reviewsCount.match(/([\\d,.]+)/);
-      if (match) {
-        reviewsCount = match[1].replace(/[,.]/g, '');
-      } else {
-        reviewsCount = null;
-      }
+      const match = reviewsCount.match(/([\d,.]+)/);
+      reviewsCount = match ? match[1].replace(/[,.]/g, '') : null;
     }
 
     let author = $('a.contributorNameID').first().text().trim()
               || $('a.author > span.a-declarative').first().text().trim()
               || $('.author a').first().text().trim();
 
-    // Data wydania
     let pubDate = null;
-    const dateMatch = response.data.match(/Publication date<\/span>\\s*<\/span>\\s*<span[^>]*>([^<]+)<\/span>/i);
+    const dateMatch = response.data.match(/Publication date<\/span>\s*<\/span>\s*<span[^>]*>([^<]+)<\/span>/i);
     if (dateMatch) {
       pubDate = dateMatch[1].trim();
     }
 
-    // Liczba stron – z "Print length"
     let pages = null;
-    const pagesMatch = response.data.match(/Print length<\/span>\\s*<\/span>\\s*<span[^>]*>(\\d+)[^<]*<\/span>/i);
+    const pagesMatch = response.data.match(/Print length<\/span>\s*<\/span>\s*<span[^>]*>(\d+)[^<]*<\/span>/i);
     if (pagesMatch) {
       pages = pagesMatch[1];
     }
@@ -93,10 +87,81 @@ app.post('/scrape', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ error: 'Błąd podczas scrapowania strony Amazon.', details: err.message });
+    res.status(500).json({ error: 'Błąd podczas scrapowania produktu Amazon.', details: err.message });
+  }
+});
+
+// === TRYB 2: ANALIZA NISZY ===
+app.get('/search-analyze', async (req, res) => {
+  const { url } = req.query;
+  if (!url || !url.includes('/s?')) {
+    return res.status(400).json({ error: 'Podaj poprawny link do wyników wyszukiwania Amazon.' });
+  }
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    });
+
+    const $ = cheerio.load(response.data);
+    const products = [];
+
+    $('div.s-result-item').each((i, el) => {
+      if (products.length >= 20) return;
+      const title = $(el).find('h2 a span').text().trim();
+      const price = $(el).find('.a-price .a-offscreen').first().text().trim();
+      const reviews = $(el).find('.a-size-small .a-size-base').last().text().trim();
+      const bsrMatch = $(el).html().match(/#([\d,]+)\s+in\s+Books/i);
+      const bsr = bsrMatch ? bsrMatch[1].replace(/,/g, '') : null;
+
+      if (title && price) {
+        products.push({
+          title,
+          price,
+          reviews: reviews.replace(/[^\d]/g, '') || '0',
+          bsr: bsr || '100000'
+        });
+      }
+    });
+
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'Nie znaleziono produktów na stronie.' });
+    }
+
+    const total = products.length;
+    const avgPrice = (
+      products.reduce((sum, p) => sum + parseFloat(p.price.replace(/[^0-9.]/g, '')) || 0, 0) / total
+    ).toFixed(2);
+
+    const avgBSR = Math.round(
+      products.reduce((sum, p) => sum + parseInt(p.bsr) || 100000, 0) / total
+    );
+
+    const avgReviews = Math.round(
+      products.reduce((sum, p) => sum + parseInt(p.reviews) || 0, 0) / total
+    );
+
+    const competition = avgReviews > 500 ? 'Wysoka' : avgReviews > 200 ? 'Średnia' : 'Niska';
+    const potential = avgBSR < 20000 && avgReviews < 300 ? 'Wysoki' : avgBSR < 50000 ? 'Średni' : 'Niski';
+
+    res.json({
+      total,
+      avgPrice,
+      avgBSR,
+      avgReviews,
+      competition,
+      potential,
+      books: products
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Błąd podczas analizy wyników wyszukiwania Amazon.', details: err.message });
   }
 });
 
 app.listen(port, () => {
-  console.log(`✅ Scraper działa na porcie ${port}`);
+  console.log(`✅ Scraper Szpiegomatu działa na porcie ${port}`);
 });
