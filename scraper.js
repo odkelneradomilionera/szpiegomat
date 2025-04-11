@@ -25,7 +25,7 @@ app.post('/scrape', async (req, res) => {
 
     const $ = cheerio.load(response.data);
 
-    // Tytuł książki
+    // Tytuł
     const title = $('#productTitle').text().trim();
 
     // Cena
@@ -34,7 +34,7 @@ app.post('/scrape', async (req, res) => {
               || $('[data-asin-price]').first().text().trim()
               || $('.a-price .a-offscreen').first().text().trim();
 
-    // Ranking (BSR)
+    // BSR (ranking)
     let bsr = null;
     const rankText = $('#productDetails_detailBullets_sections1').text()
                    || $('#detailBulletsWrapper_feature_div').text()
@@ -44,17 +44,33 @@ app.post('/scrape', async (req, res) => {
       bsr = match[1].replace(/,/g, '');
     }
 
-    // Okładka (image)
+    // Okładka
     let image = $('#imgBlkFront').attr('src') 
               || $('#landingImage').attr('src')
               || $('img#ebooksImgBlkFront').attr('src')
               || $('img.a-dynamic-image').attr('src');
 
+    // Średnia ocena (gwiazdki)
+    let rating = $('span[data-asin-average-rating]').attr('data-asin-average-rating')
+              || $('i.a-icon-star span.a-icon-alt').first().text().trim()
+              || $('.reviewCountTextLinkedHistogram.noUnderline').attr('title');
+    if (rating) {
+      rating = rating.match(/[\d.]+/)?.[0] || null;
+    }
+
+    // Liczba recenzji
+    let reviewsCount = $('#acrCustomerReviewText').text().trim();
+    if (reviewsCount) {
+      reviewsCount = reviewsCount.replace(/[^\d]/g, '');
+    }
+
     res.json({
       title: title || null,
       price: price || null,
       bsr: bsr || null,
-      image: image || null
+      image: image || null,
+      rating: rating || null,
+      reviewsCount: reviewsCount || null
     });
 
   } catch (err) {
