@@ -25,16 +25,13 @@ app.post('/scrape', async (req, res) => {
 
     const $ = cheerio.load(response.data);
 
-    // Tytuł
     const title = $('#productTitle').text().trim();
 
-    // Cena
     let price = $('#priceblock_ourprice').text().trim()
               || $('#priceblock_dealprice').text().trim()
               || $('[data-asin-price]').first().text().trim()
               || $('.a-price .a-offscreen').first().text().trim();
 
-    // BSR (ranking)
     let bsr = null;
     const rankText = $('#productDetails_detailBullets_sections1').text()
                    || $('#detailBulletsWrapper_feature_div').text()
@@ -44,13 +41,11 @@ app.post('/scrape', async (req, res) => {
       bsr = match[1].replace(/,/g, '');
     }
 
-    // Okładka
     let image = $('#imgBlkFront').attr('src') 
               || $('#landingImage').attr('src')
               || $('img#ebooksImgBlkFront').attr('src')
               || $('img.a-dynamic-image').attr('src');
 
-    // Średnia ocena (gwiazdki)
     let rating = $('span[data-asin-average-rating]').attr('data-asin-average-rating')
               || $('i.a-icon-star span.a-icon-alt').first().text().trim()
               || $('.reviewCountTextLinkedHistogram.noUnderline').attr('title');
@@ -58,11 +53,22 @@ app.post('/scrape', async (req, res) => {
       rating = rating.match(/[\d.]+/)?.[0] || null;
     }
 
-    // Liczba recenzji
     let reviewsCount = $('#acrCustomerReviewText').text().trim();
     if (reviewsCount) {
       reviewsCount = reviewsCount.replace(/[^\d]/g, '');
     }
+
+    // Autor
+    let author = $('a.contributorNameID').first().text().trim()
+              || $('a.author > span.a-declarative').first().text().trim()
+              || $('.author a').first().text().trim();
+
+    // Data wydania
+    let pubDate = $('#detailBullets_feature_div').text().match(/Publication date\s*:\s*([^\n]+)/i);
+    if (!pubDate) {
+      pubDate = $('#productDetailsTable').text().match(/Publication date\s*([^\n]+)/i);
+    }
+    pubDate = pubDate ? pubDate[1].trim() : null;
 
     res.json({
       title: title || null,
@@ -70,7 +76,9 @@ app.post('/scrape', async (req, res) => {
       bsr: bsr || null,
       image: image || null,
       rating: rating || null,
-      reviewsCount: reviewsCount || null
+      reviewsCount: reviewsCount || null,
+      author: author || null,
+      publicationDate: pubDate || null
     });
 
   } catch (err) {
