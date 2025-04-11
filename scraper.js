@@ -53,22 +53,28 @@ app.post('/scrape', async (req, res) => {
       rating = rating.match(/[\d.]+/)?.[0] || null;
     }
 
-    let reviewsCount = $('#acrCustomerReviewText').text().trim();
+    // Szukanie recenzji z różnych źródeł
+    let reviewsCount = $('#acrCustomerReviewText').text().trim()
+                    || $('#averageCustomerReviews .a-size-base').text().trim()
+                    || $('span[data-asin-total-reviews]').attr('data-asin-total-reviews');
     if (reviewsCount) {
       reviewsCount = reviewsCount.replace(/[^\d]/g, '');
     }
 
-    // Autor
     let author = $('a.contributorNameID').first().text().trim()
               || $('a.author > span.a-declarative').first().text().trim()
               || $('.author a').first().text().trim();
 
-    // Data wydania
-    let pubDate = $('#detailBullets_feature_div').text().match(/Publication date\s*:\s*([^\n]+)/i);
-    if (!pubDate) {
-      pubDate = $('#productDetailsTable').text().match(/Publication date\s*([^\n]+)/i);
-    }
+    let pubDate = $('#detailBullets_feature_div').text().match(/Publication date\\s*:\\s*([^\n]+)/i)
+              || $('#productDetailsTable').text().match(/Publication date\\s*([^\n]+)/i);
     pubDate = pubDate ? pubDate[1].trim() : null;
+
+    // Liczba stron
+    let pages = null;
+    const pagesMatch = response.data.match(/<li><span class="a-list-item">\\s*<span class="a-text-bold">\\s*Print length\\s*:<\\/span>\\s*(\\d+)\\s+pages/i);
+    if (pagesMatch) {
+      pages = pagesMatch[1];
+    }
 
     res.json({
       title: title || null,
@@ -78,7 +84,8 @@ app.post('/scrape', async (req, res) => {
       rating: rating || null,
       reviewsCount: reviewsCount || null,
       author: author || null,
-      publicationDate: pubDate || null
+      publicationDate: pubDate || null,
+      pages: pages || null
     });
 
   } catch (err) {
