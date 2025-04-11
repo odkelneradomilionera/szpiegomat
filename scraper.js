@@ -11,7 +11,6 @@ app.use(express.json());
 // === TRYB 1: ANALIZA PRODUKTU ===
 app.post('/scrape', async (req, res) => {
   const { url } = req.body;
-
   if (!url || !url.includes('amazon.')) {
     return res.status(400).json({ error: 'Niepoprawny link Amazon.' });
   }
@@ -25,7 +24,6 @@ app.post('/scrape', async (req, res) => {
     });
 
     const $ = cheerio.load(response.data);
-
     const title = $('#productTitle').text().trim();
 
     let price = $('#priceblock_ourprice').text().trim()
@@ -34,9 +32,7 @@ app.post('/scrape', async (req, res) => {
               || $('.a-price .a-offscreen').first().text().trim();
 
     let bsr = null;
-    const rankText = $('#productDetails_detailBullets_sections1').text()
-                   || $('#detailBulletsWrapper_feature_div').text()
-                   || $('#SalesRank').text();
+    const rankText = $('body').text();
     const match = rankText.match(/#([\d,]+)\s+in\s+Books/i);
     if (match) {
       bsr = match[1].replace(/,/g, '');
@@ -94,14 +90,14 @@ app.post('/scrape', async (req, res) => {
 // === TRYB 2: ANALIZA NISZY ===
 app.get('/search-analyze', async (req, res) => {
   const { url } = req.query;
-  if (!url || !url.includes('/s?')) {
+  if (!url || (!url.includes('/s?') && !url.includes('/s='))) {
     return res.status(400).json({ error: 'Podaj poprawny link do wyników wyszukiwania Amazon.' });
   }
 
   try {
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         'Accept-Language': 'en-US,en;q=0.9'
       }
     });
@@ -109,20 +105,24 @@ app.get('/search-analyze', async (req, res) => {
     const $ = cheerio.load(response.data);
     const products = [];
 
-    $('div.s-result-item').each((i, el) => {
+    $('div.s-main-slot > div[data-asin]').each((i, el) => {
       if (products.length >= 20) return;
+
+      const asin = $(el).attr('data-asin');
+      if (!asin || asin.trim() === '') return;
+
       const title = $(el).find('h2 a span').text().trim();
       const price = $(el).find('.a-price .a-offscreen').first().text().trim();
       const reviews = $(el).find('.a-size-small .a-size-base').last().text().trim();
       const bsrMatch = $(el).html().match(/#([\d,]+)\s+in\s+Books/i);
-      const bsr = bsrMatch ? bsrMatch[1].replace(/,/g, '') : null;
+      const bsr = bsrMatch ? bsrMatch[1].replace(/,/g, '') : '100000';
 
       if (title && price) {
         products.push({
           title,
           price,
           reviews: reviews.replace(/[^\d]/g, '') || '0',
-          bsr: bsr || '100000'
+          bsr: bsr
         });
       }
     });
@@ -163,5 +163,5 @@ app.get('/search-analyze', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`✅ Scraper Szpiegomatu działa na porcie ${port}`);
+  console.log(`✅ Scraper działa na porcie ${port}`);
 });
