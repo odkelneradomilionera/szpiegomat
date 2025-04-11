@@ -25,13 +25,16 @@ app.post('/scrape', async (req, res) => {
 
     const $ = cheerio.load(response.data);
 
+    // Tytuł
     const title = $('#productTitle').text().trim();
 
+    // Cena
     let price = $('#priceblock_ourprice').text().trim()
               || $('#priceblock_dealprice').text().trim()
               || $('[data-asin-price]').first().text().trim()
               || $('.a-price .a-offscreen').first().text().trim();
 
+    // Ranking BSR
     let bsr = null;
     const rankText = $('#productDetails_detailBullets_sections1').text()
                    || $('#detailBulletsWrapper_feature_div').text()
@@ -41,37 +44,39 @@ app.post('/scrape', async (req, res) => {
       bsr = match[1].replace(/,/g, '');
     }
 
+    // Okładka
     let image = $('#imgBlkFront').attr('src') 
               || $('#landingImage').attr('src')
               || $('img#ebooksImgBlkFront').attr('src')
               || $('img.a-dynamic-image').attr('src');
 
-    let rating = $('span[data-asin-average-rating]').attr('data-asin-average-rating')
-              || $('i.a-icon-star span.a-icon-alt').first().text().trim()
-              || $('.reviewCountTextLinkedHistogram.noUnderline').attr('title');
+    // Ocena
+    let rating = $('i.a-icon-star span.a-icon-alt').first().text().trim();
     if (rating) {
       rating = rating.match(/[\d.]+/)?.[0] || null;
     }
 
-    // Szukanie recenzji z różnych źródeł
-    let reviewsCount = $('#acrCustomerReviewText').text().trim()
-                    || $('#averageCustomerReviews .a-size-base').text().trim()
-                    || $('span[data-asin-total-reviews]').attr('data-asin-total-reviews');
+    // Liczba recenzji
+    let reviewsCount = $('#acrCustomerReviewText').text().trim();
     if (reviewsCount) {
       reviewsCount = reviewsCount.replace(/[^\d]/g, '');
     }
 
+    // Autor
     let author = $('a.contributorNameID').first().text().trim()
               || $('a.author > span.a-declarative').first().text().trim()
               || $('.author a').first().text().trim();
 
-    let pubDate = $('#detailBullets_feature_div').text().match(/Publication date\\s*:\\s*([^\n]+)/i)
-              || $('#productDetailsTable').text().match(/Publication date\\s*([^\n]+)/i);
-    pubDate = pubDate ? pubDate[1].trim() : null;
+    // Data wydania
+    let pubDate = null;
+    const dateMatch = response.data.match(/Publication date<\/span>\s*<\/span>\s*<span[^>]*>([^<]+)<\/span>/i);
+    if (dateMatch) {
+      pubDate = dateMatch[1].trim();
+    }
 
     // Liczba stron
     let pages = null;
-    const pagesMatch = response.data.match(/<li><span class="a-list-item">\\s*<span class="a-text-bold">\\s*Print length\\s*:<\\/span>\\s*(\\d+)\\s+pages/i);
+    const pagesMatch = response.data.match(/Print length<\/span>\s*<\/span>\s*<span[^>]*>(\d+)[^<]*<\/span>/i);
     if (pagesMatch) {
       pages = pagesMatch[1];
     }
