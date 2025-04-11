@@ -17,19 +17,48 @@ app.post('/scrape', async (req, res) => {
 
   try {
     const response = await axios.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
     });
 
     const $ = cheerio.load(response.data);
-    const title = $('#productTitle').text().trim();
-    const price = $('#priceblock_ourprice').text().trim() || $('#priceblock_dealprice').text().trim();
-    const details = $('#productDetails_detailBullets_sections1').text();
-    const bsrMatch = details.match(/#([\d,]+)\s+in\s+Books/i);
-    const bsr = bsrMatch ? parseInt(bsrMatch[1].replace(/,/g, '')) : null;
 
-    res.json({ title, price, bsr });
+    // Tytuł książki
+    const title = $('#productTitle').text().trim();
+
+    // Cena
+    let price = $('#priceblock_ourprice').text().trim()
+              || $('#priceblock_dealprice').text().trim()
+              || $('[data-asin-price]').first().text().trim()
+              || $('.a-price .a-offscreen').first().text().trim();
+
+    // Ranking (BSR)
+    let bsr = null;
+    const rankText = $('#productDetails_detailBullets_sections1').text()
+                   || $('#detailBulletsWrapper_feature_div').text()
+                   || $('#SalesRank').text();
+    const match = rankText.match(/#([\d,]+)\s+in\s+Books/i);
+    if (match) {
+      bsr = match[1].replace(/,/g, '');
+    }
+
+    // Okładka (image)
+    let image = $('#imgBlkFront').attr('src') 
+              || $('#landingImage').attr('src')
+              || $('img#ebooksImgBlkFront').attr('src')
+              || $('img.a-dynamic-image').attr('src');
+
+    res.json({
+      title: title || null,
+      price: price || null,
+      bsr: bsr || null,
+      image: image || null
+    });
+
   } catch (err) {
-    res.status(500).json({ error: 'Nie udało się pobrać danych.', details: err.message });
+    res.status(500).json({ error: 'Błąd podczas scrapowania strony Amazon.', details: err.message });
   }
 });
 
