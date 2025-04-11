@@ -25,16 +25,13 @@ app.post('/scrape', async (req, res) => {
 
     const $ = cheerio.load(response.data);
 
-    // Tytuł
     const title = $('#productTitle').text().trim();
 
-    // Cena
     let price = $('#priceblock_ourprice').text().trim()
               || $('#priceblock_dealprice').text().trim()
               || $('[data-asin-price]').first().text().trim()
               || $('.a-price .a-offscreen').first().text().trim();
 
-    // Ranking BSR
     let bsr = null;
     const rankText = $('#productDetails_detailBullets_sections1').text()
                    || $('#detailBulletsWrapper_feature_div').text()
@@ -44,39 +41,41 @@ app.post('/scrape', async (req, res) => {
       bsr = match[1].replace(/,/g, '');
     }
 
-    // Okładka
     let image = $('#imgBlkFront').attr('src') 
               || $('#landingImage').attr('src')
               || $('img#ebooksImgBlkFront').attr('src')
               || $('img.a-dynamic-image').attr('src');
 
-    // Ocena
     let rating = $('i.a-icon-star span.a-icon-alt').first().text().trim();
     if (rating) {
       rating = rating.match(/[\d.]+/)?.[0] || null;
     }
 
-    // Liczba recenzji
+    // Recenzje – z tekstu "4,863 ratings"
     let reviewsCount = $('#acrCustomerReviewText').text().trim();
     if (reviewsCount) {
-      reviewsCount = reviewsCount.replace(/[^\d]/g, '');
+      const match = reviewsCount.match(/([\\d,.]+)/);
+      if (match) {
+        reviewsCount = match[1].replace(/[,.]/g, '');
+      } else {
+        reviewsCount = null;
+      }
     }
 
-    // Autor
     let author = $('a.contributorNameID').first().text().trim()
               || $('a.author > span.a-declarative').first().text().trim()
               || $('.author a').first().text().trim();
 
     // Data wydania
     let pubDate = null;
-    const dateMatch = response.data.match(/Publication date<\/span>\s*<\/span>\s*<span[^>]*>([^<]+)<\/span>/i);
+    const dateMatch = response.data.match(/Publication date<\/span>\\s*<\/span>\\s*<span[^>]*>([^<]+)<\/span>/i);
     if (dateMatch) {
       pubDate = dateMatch[1].trim();
     }
 
-    // Liczba stron
+    // Liczba stron – z "Print length"
     let pages = null;
-    const pagesMatch = response.data.match(/Print length<\/span>\s*<\/span>\s*<span[^>]*>(\d+)[^<]*<\/span>/i);
+    const pagesMatch = response.data.match(/Print length<\/span>\\s*<\/span>\\s*<span[^>]*>(\\d+)[^<]*<\/span>/i);
     if (pagesMatch) {
       pages = pagesMatch[1];
     }
